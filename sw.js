@@ -1,5 +1,5 @@
 // Caches the app shell so the home-screen app opens instantly. API calls always go to the network.
-const CACHE = "quick-cal-v1";
+const CACHE = "quick-cal-v2";
 const SHELL = [
   "./",
   "index.html",

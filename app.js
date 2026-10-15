@@ -2,7 +2,7 @@ import { parseSchedule } from "./parse.js";
 import { AuthError, getToken, handleRedirect, insertEvent, logout, redirectUri, startLogin } from "./gcal.js";
 
 const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Seoul";
-const KEYS = { apiKey: "qc.apiKey", clientId: "qc.clientId", draft: "qc.draft", pending: "qc.pending" };
+const KEYS = { apiKey: "qc.geminiKey", clientId: "qc.clientId", draft: "qc.draft", pending: "qc.pending" };
 
 const store = {
   get(key) { try { return JSON.parse(localStorage.getItem(key)); } catch { return null; } },
@@ -132,7 +132,7 @@ async function parse() {
   if (!text) return setStatus("일정을 입력해 주세요.", true);
   const apiKey = store.get(KEYS.apiKey);
   if (!apiKey) {
-    setStatus("먼저 Claude API 키를 설정해 주세요.", true);
+    setStatus("먼저 Gemini API 키를 설정해 주세요.", true);
     return openSettings();
   }
   parseBtn.disabled = true;

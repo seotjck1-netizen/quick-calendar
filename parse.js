@@ -1,5 +1,8 @@
-// Turns free-form text into event objects via the Claude Messages API.
-// The prompt and JSON schema live in request-template.json, shared with the iPhone shortcut.
+// Turns free-form text into event objects via the Gemini API (free tier).
+// The prompt and JSON schema live in request-template.json, shared with the iPhone shortcut,
+// which still sends that file to Claude as-is; here it is converted to a Gemini request.
+
+const GEMINI_MODEL = "gemini-3.8-flash";
 
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
 const WEEK_LABELS = ["이번주", "다음주", "다다음주"];
@@ -49,33 +52,44 @@ function toDraft(raw) {
   };
 }
 
+// Gemini's schema support is narrower than Claude's; additionalProperties isn't needed for it.
+function stripAdditionalProperties(schema) {
+  return JSON.parse(JSON.stringify(schema, (k, v) => (k === "additionalProperties" ? undefined : v)));
+}
+
 export async function parseSchedule(text, apiKey, timeZone) {
   const template = await loadTemplate();
-  const body = structuredClone(template);
-  body.messages[0].content = body.messages[0].content
+  const prompt = template.messages[0].content
     .replace("{{NOW}}", () => describeNow(new Date(), timeZone))
     .replace("{{TEXT}}", () => text);
-
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-api-key": apiKey,
-      "anthropic-version": "2023-06-01",
-      "anthropic-dangerous-direct-browser-access": "true",
+  const body = {
+    systemInstruction: { parts: [{ text: template.system }] },
+    contents: [{ role: "user", parts: [{ text: prompt }] }],
+    generationConfig: {
+      responseMimeType: "application/json",
+      responseJsonSchema: stripAdditionalProperties(template.output_config.format.schema),
     },
+  };
+
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
     body: JSON.stringify(body),
   });
   const data = await res.json().catch(() => null);
   if (!res.ok) {
     const msg = data?.error?.message ?? res.statusText;
-    if (res.status === 401) throw new Error("Claude API 키가 올바르지 않습니다. 설정에서 확인해 주세요.");
-    throw new Error(`Claude API 오류 (${res.status}): ${msg}`);
+    if (res.status === 401 || res.status === 403 || /API key/i.test(msg)) {
+      throw new Error("Gemini API 키가 올바르지 않습니다. 설정에서 확인해 주세요.");
+    }
+    if (res.status === 429) throw new Error("Gemini 무료 사용 한도를 넘었습니다. 잠시 후 다시 시도해 주세요.");
+    throw new Error(`Gemini API 오류 (${res.status}): ${msg}`);
   }
-  if (data.stop_reason === "refusal") throw new Error("이 입력은 해석할 수 없습니다. 문장을 바꿔 다시 시도해 주세요.");
-  if (data.stop_reason === "max_tokens") throw new Error("입력이 너무 깁니다. 나눠서 입력해 주세요.");
+  if (data.promptFeedback?.blockReason) throw new Error("이 입력은 해석할 수 없습니다. 문장을 바꿔 다시 시도해 주세요.");
+  const candidate = data.candidates?.[0];
+  if (candidate?.finishReason === "MAX_TOKENS") throw new Error("입력이 너무 깁니다. 나눠서 입력해 주세요.");
 
-  const textBlock = data.content.findLast((b) => b.type === "text");
-  if (!textBlock) throw new Error("응답에 결과가 없습니다. 다시 시도해 주세요.");
-  return JSON.parse(textBlock.text).events.map(toDraft);
+  const output = (candidate?.content?.parts ?? []).filter((p) => p.text && !p.thought).map((p) => p.text).join("");
+  if (!output) throw new Error("응답에 결과가 없습니다. 다시 시도해 주세요.");
+  return JSON.parse(output).events.map(toDraft);
 }
