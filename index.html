@@ -1,0 +1,85 @@
+﻿<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>빠른 일정 등록</title>
+  <meta name="theme-color" content="#1a73e8">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="일정등록">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="style.css">
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <header class="top">
+    <h1>빠른 일정 등록</h1>
+    <button id="open-settings" class="icon-btn" aria-label="설정">⚙︎</button>
+  </header>
+
+  <main>
+    <section class="panel">
+      <label for="input" class="sr-only">일정 입력</label>
+      <textarea id="input" rows="4" placeholder="예) 다음주 화요일 오후 3시 강남역 민수랑 미팅&#10;매주 월수금 아침 7시 수영&#10;10/24 엄마 생신"></textarea>
+      <button id="parse" class="primary">해석하기</button>
+    </section>
+
+    <section id="review" class="panel" hidden>
+      <div class="review-head">
+        <h2>이렇게 이해했어요</h2>
+        <span id="count" class="muted"></span>
+      </div>
+      <ul id="cards" class="cards"></ul>
+      <button id="add" class="primary">캘린더에 추가</button>
+    </section>
+
+    <p id="status" class="status" role="status" aria-live="polite"></p>
+  </main>
+
+  <dialog id="settings">
+    <form method="dialog" class="settings-form">
+      <h2>설정</h2>
+      <label>Claude API 키
+        <input id="api-key" type="password" autocomplete="off" placeholder="sk-ant-...">
+      </label>
+      <label>Google OAuth 클라이언트 ID
+        <input id="client-id" type="text" autocomplete="off" placeholder="xxxx.apps.googleusercontent.com">
+      </label>
+      <p class="muted small">리디렉션 URI: <code id="redirect-uri"></code></p>
+      <p class="muted small">키는 이 기기의 브라우저에만 저장됩니다.</p>
+      <div class="row">
+        <span id="google-state" class="muted small"></span>
+        <button id="logout" type="button" class="link">Google 연결 해제</button>
+      </div>
+      <div class="row end">
+        <button value="cancel" class="ghost">닫기</button>
+        <button id="save-settings" value="save" class="primary">저장</button>
+      </div>
+    </form>
+  </dialog>
+
+  <template id="card-tpl">
+    <li class="card">
+      <div class="card-head">
+        <input type="checkbox" data-field="include" aria-label="등록 포함">
+        <input type="text" data-field="title" class="title-input" aria-label="제목">
+      </div>
+      <div class="grid">
+        <label>날짜<input type="date" data-field="startDate"></label>
+        <label class="inline"><input type="checkbox" data-field="allDay">종일</label>
+        <label class="time">시작<input type="time" data-field="startTime"></label>
+        <label class="time">종료<input type="time" data-field="endTime"></label>
+        <label class="span">장소<input type="text" data-field="location" placeholder="없음"></label>
+      </div>
+      <p class="repeat" hidden><span class="badge">반복</span> <span class="repeat-text"></span>
+        <button type="button" class="link" data-action="clear-repeat">반복 없애기</button></p>
+      <p class="notes muted small" hidden></p>
+      <p class="result small" hidden></p>
+    </li>
+  </template>
+</body>
+</html>
