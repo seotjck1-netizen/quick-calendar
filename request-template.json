@@ -1,41 +1,47 @@
 {
-  "model": "claude-haiku-5-5",
-  "max_tokens": 4096,
-  "output_config": {
-    "effort": "low",
-    "format": {
-      "type": "json_schema",
-      "schema": {
-        "type": "object",
-        "properties": {
-          "events": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "title": { "type": "string" },
-                "all_day": { "type": "boolean" },
-                "start": { "type": "string" },
-                "end": { "type": "string" },
-                "location": { "type": "string" },
-                "recurrence": { "type": "string" },
-                "notes": { "type": "string" }
-              },
-              "required": ["title", "all_day", "start", "end", "location", "recurrence", "notes"],
-              "additionalProperties": false
-            }
-          }
-        },
-        "required": ["events"],
-        "additionalProperties": false
+  "systemInstruction": {
+    "parts": [
+      {
+        "text": "You convert short Korean (or English) notes into calendar events. Return every distinct event found in the input.\n\nRules:\n- Dates: resolve relative expressions against the current time given in the message. 오늘 = today, 내일 = +1 day, 모레 = +2, 글피 = +3. Weeks run Monday to Sunday. '이번주 X요일' is that weekday in the current week; '다음주/담주 X요일' is that weekday in the following week; a bare 'X요일' is the next such day on or after today. '20일' or '10/20' without month or year means the next upcoming such date. When a date table is provided, look dates up in it instead of calculating.\n- Times: 오전/아침/새벽 = AM, 오후/저녁/밤 = PM, 정오 or 낮 12시 = 12:00. A bare hour from 1 to 7 means PM, 8 to 11 means AM, 12 means 12:00. 아침 alone = 09:00, 점심 = 12:00, 저녁 alone = 19:00. 'N시 반' = N:30.\n- Format: for timed events set all_day=false and write start and end as 'YYYY-MM-DD HH:MM' (24-hour). When the input gives no time, set all_day=true and write start and end as 'YYYY-MM-DD'; end is the last day, inclusive (equal to start for a one-day event).\n- Duration: use an explicit end time or duration ('5시까지', '2시간') when given; otherwise a timed event lasts 1 hour.\n- A time with no date means today if that time is still ahead, otherwise tomorrow.\n- title: short and natural, in the input's language, without the date, time or location words. Keep people's names and the purpose (e.g. '민수랑 미팅', '치과').\n- location: only a place stated in the input, otherwise an empty string. Never invent one.\n- recurrence: only when the input says the event repeats (매일, 매주, 격주, 매월, 매년, 평일마다 ...). Write one RFC 5545 rule starting with 'RRULE:', e.g. 'RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR'. 격주 = FREQ=WEEKLY;INTERVAL=2. 평일 = BYDAY=MO,TU,WE,TH,FR. 'N번/N회' = COUNT=N. 'X까지' = UNTIL=YYYYMMDD (date only). start is the first occurrence. Otherwise an empty string. '이번주 월수금 운동' without 매주 is three separate events, not a recurrence.\n- notes: details from the input not captured elsewhere (e.g. '준비물: 신분증'), otherwise an empty string.\n- Each line or sentence describing a separate appointment becomes a separate event. If the input contains nothing schedulable, return an empty events list."
       }
-    }
+    ]
   },
-  "system": "You convert short Korean (or English) notes into calendar events. Return every distinct event found in the input.\n\nRules:\n- Dates: resolve relative expressions against the current time given in the message. 오늘 = today, 내일 = +1 day, 모레 = +2, 글피 = +3. Weeks run Monday to Sunday. '이번주 X요일' is that weekday in the current week; '다음주/담주 X요일' is that weekday in the following week; a bare 'X요일' is the next such day on or after today. '20일' or '10/20' without month or year means the next upcoming such date. When a date table is provided, look dates up in it instead of calculating.\n- Times: 오전/아침/새벽 = AM, 오후/저녁/밤 = PM, 정오 or 낮 12시 = 12:00. A bare hour from 1 to 7 means PM, 8 to 11 means AM, 12 means 12:00. 아침 alone = 09:00, 점심 = 12:00, 저녁 alone = 19:00. 'N시 반' = N:30.\n- Format: for timed events set all_day=false and write start and end as 'YYYY-MM-DD HH:MM' (24-hour). When the input gives no time, set all_day=true and write start and end as 'YYYY-MM-DD'; end is the last day, inclusive (equal to start for a one-day event).\n- Duration: use an explicit end time or duration ('5시까지', '2시간') when given; otherwise a timed event lasts 1 hour.\n- A time with no date means today if that time is still ahead, otherwise tomorrow.\n- title: short and natural, in the input's language, without the date, time or location words. Keep people's names and the purpose (e.g. '민수랑 미팅', '치과').\n- location: only a place stated in the input, otherwise an empty string. Never invent one.\n- recurrence: only when the input says the event repeats (매일, 매주, 격주, 매월, 매년, 평일마다 ...). Write one RFC 5545 rule starting with 'RRULE:', e.g. 'RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR'. 격주 = FREQ=WEEKLY;INTERVAL=2. 평일 = BYDAY=MO,TU,WE,TH,FR. 'N번/N회' = COUNT=N. 'X까지' = UNTIL=YYYYMMDD (date only). start is the first occurrence. Otherwise an empty string. '이번주 월수금 운동' without 매주 is three separate events, not a recurrence.\n- notes: details from the input not captured elsewhere (e.g. '준비물: 신분증'), otherwise an empty string.\n- Each line or sentence describing a separate appointment becomes a separate event. If the input contains nothing schedulable, return an empty events list.",
-  "messages": [
+  "contents": [
     {
       "role": "user",
-      "content": "현재 시각: {{NOW}}\n\n입력:\n{{TEXT}}"
+      "parts": [
+        {
+          "text": "현재 시각: {{NOW}}\n\n입력:\n{{TEXT}}"
+        }
+      ]
     }
-  ]
+  ],
+  "generationConfig": {
+    "responseMimeType": "application/json",
+    "responseJsonSchema": {
+      "type": "object",
+      "properties": {
+        "events": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "title": { "type": "string" },
+              "all_day": { "type": "boolean" },
+              "start": { "type": "string" },
+              "end": { "type": "string" },
+              "location": { "type": "string" },
+              "recurrence": { "type": "string" },
+              "notes": { "type": "string" }
+            },
+            "required": ["title", "all_day", "start", "end", "location", "recurrence", "notes"]
+          }
+        }
+      },
+      "required": ["events"]
+    },
+    "thinkingConfig": {
+      "thinkingLevel": "low"
+    }
+  }
 }

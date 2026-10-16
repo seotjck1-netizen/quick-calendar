@@ -25,7 +25,10 @@
     <section class="panel">
       <label for="input" class="sr-only">일정 입력</label>
       <textarea id="input" rows="4" placeholder="예) 다음주 화요일 오후 3시 강남역 민수랑 미팅&#10;매주 월수금 아침 7시 수영&#10;10/24 엄마 생신"></textarea>
-      <button id="parse" class="primary">해석하기</button>
+      <div class="actions">
+        <button id="paste" type="button" class="ghost">붙여넣기</button>
+        <button id="parse" class="primary">해석하기</button>
+      </div>
     </section>
 
     <section id="review" class="panel" hidden>
@@ -51,6 +54,7 @@
       </label>
       <p class="muted small">리디렉션 URI: <code id="redirect-uri"></code></p>
       <p class="muted small">키는 이 기기의 브라우저에만 저장됩니다.</p>
+      <p id="settings-error" class="small err-text" role="alert" hidden></p>
       <div class="row">
         <span id="google-state" class="muted small"></span>
         <button id="logout" type="button" class="link">Google 연결 해제</button>

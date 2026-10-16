@@ -4,6 +4,7 @@
 const SCOPE = "https://www.googleapis.com/auth/calendar.events";
 const TOKEN_KEY = "qc.googleToken";
 const STATE_KEY = "qc.oauthState";
+const EMAIL_KEY = "qc.googleEmail";
 
 export class AuthError extends Error {}
 
@@ -23,6 +24,12 @@ export function getToken() {
   return t && t.expiresAt > Date.now() + 60_000 ? t.accessToken : null;
 }
 
+// The account the last event was created with; used as login_hint so the hourly
+// re-login goes straight back to that account instead of whichever one Safari has.
+export function googleEmail() {
+  return store.get(EMAIL_KEY);
+}
+
 export function startLogin(clientId) {
   const state = crypto.randomUUID();
   store.set(STATE_KEY, state);
@@ -34,6 +41,8 @@ export function startLogin(clientId) {
     include_granted_scopes: "true",
     state,
   });
+  const email = googleEmail();
+  if (email) params.set("login_hint", email);
   location.assign(`https://accounts.google.com/o/oauth2/v2/auth?${params}`);
 }
 
@@ -58,6 +67,7 @@ export function handleRedirect() {
 export function logout() {
   const token = getToken();
   store.remove(TOKEN_KEY);
+  store.remove(EMAIL_KEY);
   if (token) fetch(`https://oauth2.googleapis.com/revoke?token=${encodeURIComponent(token)}`, { method: "POST" }).catch(() => {});
 }
 
@@ -95,5 +105,19 @@ export async function insertEvent(ev, token, timeZone) {
   if (res.status === 401) throw new AuthError("Google 로그인이 만료되었습니다.");
   const data = await res.json().catch(() => null);
   if (!res.ok) throw new Error(data?.error?.message ?? `Google Calendar 오류 (${res.status})`);
+  if (data.creator?.email) store.set(EMAIL_KEY, data.creator.email);
   return data;
+}
+
+export async function deleteEvent(eventId, token) {
+  const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(eventId)}`, {
+    method: "DELETE",
+    headers: { authorization: `Bearer ${token}` },
+  });
+  if (res.status === 401) throw new AuthError("Google 로그인이 만료되었습니다.");
+  // 410: already deleted, which is what the user wanted anyway.
+  if (!res.ok && res.status !== 410) {
+    const data = await res.json().catch(() => null);
+    throw new Error(data?.error?.message ?? `Google Calendar 오류 (${res.status})`);
+  }
 }

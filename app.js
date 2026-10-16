@@ -1,5 +1,5 @@
 import { parseSchedule } from "./parse.js";
-import { AuthError, getToken, handleRedirect, insertEvent, logout, redirectUri, startLogin } from "./gcal.js";
+import { AuthError, deleteEvent, getToken, googleEmail, handleRedirect, insertEvent, logout, redirectUri, startLogin } from "./gcal.js";
 
 const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Seoul";
 const KEYS = { apiKey: "qc.geminiKey", clientId: "qc.clientId", draft: "qc.draft", pending: "qc.pending" };
@@ -76,7 +76,8 @@ function renderCards() {
     if (ev.done) {
       result.hidden = false;
       result.className = "result small ok";
-      result.innerHTML = `✓ 등록됨 · <a target="_blank" rel="noopener">캘린더에서 보기</a>`;
+      result.innerHTML = `✓ 등록됨 · <a target="_blank" rel="noopener">캘린더에서 보기</a>
+        <button type="button" class="link" data-action="undo">취소</button>`;
       result.querySelector("a").href = ev.link;
     } else if (ev.error) {
       result.hidden = false;
@@ -121,10 +122,31 @@ function onCardEdit(e) {
 cards.addEventListener("change", onCardEdit);
 cards.addEventListener("input", (e) => { if (e.target.type === "text") onCardEdit(e); });
 cards.addEventListener("click", (e) => {
-  if (e.target.dataset.action !== "clear-repeat") return;
-  events[e.target.closest(".card").dataset.index].recurrence = "";
-  renderCards();
+  const action = e.target.dataset.action;
+  if (!action) return;
+  const ev = events[e.target.closest(".card").dataset.index];
+  if (action === "clear-repeat") {
+    ev.recurrence = "";
+    renderCards();
+  } else if (action === "undo") {
+    undo(ev, e.target);
+  }
 });
+
+async function undo(ev, button) {
+  const token = getToken();
+  if (!token) return setStatus("Google 로그인이 만료되어 취소하지 못했어요. 캘린더 앱에서 지워 주세요.", true);
+  button.disabled = true;
+  try {
+    await deleteEvent(ev.id, token);
+    Object.assign(ev, { done: false, include: false, id: undefined, link: undefined });
+    renderCards();
+    setStatus(`'${ev.title}' 일정을 캘린더에서 지웠어요.`);
+  } catch (err) {
+    button.disabled = false;
+    setStatus(err instanceof AuthError ? "Google 로그인이 만료되어 취소하지 못했어요. 캘린더 앱에서 지워 주세요." : err.message, true);
+  }
+}
 
 // ---- Parse ----
 async function parse() {
@@ -183,6 +205,7 @@ async function addSelected() {
     try {
       const created = await insertEvent(ev, token, TZ);
       ev.done = true;
+      ev.id = created.id;
       ev.link = created.htmlLink;
     } catch (err) {
       if (err instanceof AuthError) return goLogin();
@@ -201,6 +224,22 @@ async function addSelected() {
   }
 }
 
+// Replaces the input with the clipboard and parses it right away (e.g. a message copied from KakaoTalk).
+const pasteBtn = $("#paste");
+if (!navigator.clipboard?.readText) pasteBtn.hidden = true;
+pasteBtn.addEventListener("click", async () => {
+  let text;
+  try {
+    text = (await navigator.clipboard.readText()).trim();
+  } catch {
+    return setStatus("클립보드를 읽지 못했어요. 입력칸을 길게 눌러 붙여넣어 주세요.", true);
+  }
+  if (!text) return setStatus("클립보드가 비어 있어요.", true);
+  input.value = text;
+  store.set(KEYS.draft, text);
+  parse();
+});
+
 parseBtn.addEventListener("click", parse);
 addBtn.addEventListener("click", addSelected);
 input.addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) parse(); });
@@ -212,9 +251,38 @@ function openSettings() {
   $("#client-id").value = store.get(KEYS.clientId) ?? "";
   $("#redirect-uri").textContent = redirectUri();
   $("#google-state").textContent = getToken() ? "Google 연결됨" : "Google 미연결";
+  if (googleEmail()) $("#google-state").textContent += ` · ${googleEmail()}`;
+  $("#settings-error").hidden = true;
   dialog.showModal();
 }
 $("#open-settings").addEventListener("click", openSettings);
+
+// Catches the mistakes that cause invalid_client / "API key not valid": the two fields swapped,
+// or the client secret pasted along with the client ID.
+const CLIENT_ID_RE = /\d+-[a-z0-9]+\.apps\.googleusercontent\.com/i;
+function checkSettings() {
+  const keyEl = $("#api-key");
+  const idEl = $("#client-id");
+  const key = keyEl.value.trim();
+  const id = idEl.value.trim();
+  if (CLIENT_ID_RE.test(key) || /^(AIza|AQ\.)/.test(id)) return "두 칸의 값이 서로 바뀐 것 같아요. 위에는 Gemini 키, 아래에는 클라이언트 ID를 넣어 주세요.";
+  if (/^GOCSPX-/.test(key) || /^GOCSPX-/.test(id)) return "GOCSPX-로 시작하는 값(클라이언트 보안 비밀번호)은 넣지 않아요.";
+  if (key && !/^(AIza|AQ\.)\S+$/.test(key)) return "Gemini API 키는 AIza 또는 AQ.로 시작해요. aistudio.google.com/apikey에서 복사해 주세요.";
+  if (id) {
+    const match = id.match(CLIENT_ID_RE);
+    if (!match) return "클라이언트 ID는 ….apps.googleusercontent.com 으로 끝나야 해요.";
+    idEl.value = match[0];
+  }
+  keyEl.value = key;
+  return "";
+}
+$("#save-settings").addEventListener("click", (e) => {
+  const error = checkSettings();
+  if (!error) return;
+  e.preventDefault();
+  $("#settings-error").textContent = error;
+  $("#settings-error").hidden = false;
+});
 dialog.addEventListener("close", () => {
   if (dialog.returnValue !== "save") return;
   store.set(KEYS.apiKey, $("#api-key").value.trim());

@@ -1,6 +1,6 @@
 // Turns free-form text into event objects via the Gemini API (free tier).
-// The prompt and JSON schema live in request-template.json, shared with the iPhone shortcut,
-// which still sends that file to Claude as-is; here it is converted to a Gemini request.
+// The request body (prompt, JSON schema, thinking level) lives in request-template.json,
+// shared with the iPhone shortcut. Keep GEMINI_MODEL in sync with SHORTCUT.md.
 
 const GEMINI_MODEL = "gemini-3.8-flash";
 
@@ -52,24 +52,12 @@ function toDraft(raw) {
   };
 }
 
-// Gemini's schema support is narrower than Claude's; additionalProperties isn't needed for it.
-function stripAdditionalProperties(schema) {
-  return JSON.parse(JSON.stringify(schema, (k, v) => (k === "additionalProperties" ? undefined : v)));
-}
-
 export async function parseSchedule(text, apiKey, timeZone) {
-  const template = await loadTemplate();
-  const prompt = template.messages[0].content
+  const body = structuredClone(await loadTemplate());
+  const prompt = body.contents[0].parts[0];
+  prompt.text = prompt.text
     .replace("{{NOW}}", () => describeNow(new Date(), timeZone))
     .replace("{{TEXT}}", () => text);
-  const body = {
-    systemInstruction: { parts: [{ text: template.system }] },
-    contents: [{ role: "user", parts: [{ text: prompt }] }],
-    generationConfig: {
-      responseMimeType: "application/json",
-      responseJsonSchema: stripAdditionalProperties(template.output_config.format.schema),
-    },
-  };
 
   const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`, {
     method: "POST",

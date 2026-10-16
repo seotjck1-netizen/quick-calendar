@@ -1,7 +1,7 @@
 # 아이폰 단축어: "시리야, 일정 등록"
 
-말이나 글로 입력한 일정을 Claude가 해석해서 **아이폰 캘린더 앱에 연결된 구글 캘린더**에 바로 넣는 단축어입니다.
-구글 로그인이 필요 없고, 앱을 열지 않아도 됩니다.
+말이나 글로 입력한 일정을 Gemini(무료)가 해석해서 **아이폰 캘린더 앱에 연결된 구글 캘린더**에 바로 넣는 단축어입니다.
+구글 로그인이 필요 없고, 앱을 열지 않아도 됩니다. PWA 앱에서 쓰는 Gemini API 키를 그대로 씁니다.
 
 > 반복 일정은 단축어의 "새로운 이벤트 추가" 동작이 지원하지 않아 **첫 회차만** 등록됩니다.
 > 반복 일정은 PWA 앱으로 등록하세요.
@@ -25,17 +25,20 @@
 | 5 | **현재 날짜** (Current Date) | |
 | 6 | **날짜 포맷** (Format Date) | 사용자 지정 · `yyyy-MM-dd (E) HH:mm, 'Asia/Seoul'` · 지역 한국 → 변수 이름 `지금` |
 | 7 | **텍스트** (Text) | 복사한 `request-template.json` 전체를 붙여넣고, `{{NOW}}` 자리에 변수 `지금`, `{{TEXT}}` 자리에 변수 `입력` 을 넣습니다 |
-| 8 | **URL의 콘텐츠 가져오기** (Get Contents of URL) | URL `https://api.anthropic.com/v1/messages` · 방법 **POST** · 헤더 3개: `x-api-key` = *내 API 키*, `anthropic-version` = `2023-06-01`, `content-type` = `application/json` · 요청 본문: **파일** → 7번 텍스트 |
-| 9 | **사전 값 가져오기** (Get Dictionary Value) | 키 `content` |
-| 10 | **목록에서 항목 가져오기** (Get Item from List) | **마지막 항목** |
-| 11 | **사전 값 가져오기** | 키 `text` |
-| 12 | **입력에서 사전 가져오기** (Get Dictionary from Input) | 입력: 11번 결과 |
-| 12-1 | **사전 값 가져오기** | 키 `events` (입력: 12번 결과) |
-| 13 | **각 항목을 반복** (Repeat with Each) | 12-1번 결과 |
-| 14 | ↳ **조건** (If) | *반복 항목*의 `all_day` 가 `1`(참)이면 |
-| 15 | ↳↳ **새로운 이벤트 추가** (Add New Event) | 제목: 반복 항목의 `title` · 캘린더: **구글 캘린더 선택** · 시작/종료: `start` / `end` · **하루 종일 켬** · 위치: `location` · 메모: `notes` |
-| 16 | ↳ **그렇지 않으면** (Otherwise) | 15번과 동일, **하루 종일 끔** |
-| 17 | **알림 보기** (Show Notification) | `12번 결과의 항목 수`개 일정을 등록했어요 |
+| 8 | **URL의 콘텐츠 가져오기** (Get Contents of URL) | URL `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent` · 방법 **POST** · 헤더 2개: `x-goog-api-key` = *내 Gemini API 키*, `content-type` = `application/json` · 요청 본문: **파일** → 7번 텍스트 |
+| 9 | **사전 값 가져오기** (Get Dictionary Value) | 키 `candidates` |
+| 10 | **목록에서 항목 가져오기** (Get Item from List) | **첫 번째 항목** |
+| 11 | **사전 값 가져오기** | 키 `content` |
+| 12 | **사전 값 가져오기** | 키 `parts` |
+| 13 | **목록에서 항목 가져오기** | **마지막 항목** |
+| 14 | **사전 값 가져오기** | 키 `text` |
+| 15 | **입력에서 사전 가져오기** (Get Dictionary from Input) | 입력: 14번 결과 |
+| 16 | **사전 값 가져오기** | 키 `events` (입력: 15번 결과) |
+| 17 | **각 항목을 반복** (Repeat with Each) | 16번 결과 |
+| 18 | ↳ **조건** (If) | *반복 항목*의 `all_day` 가 `1`(참)이면 |
+| 19 | ↳↳ **새로운 이벤트 추가** (Add New Event) | 제목: 반복 항목의 `title` · 캘린더: **구글 캘린더 선택** · 시작/종료: `start` / `end` · **하루 종일 켬** · 위치: `location` · 메모: `notes` |
+| 20 | ↳ **그렇지 않으면** (Otherwise) | 19번과 동일, **하루 종일 끔** |
+| 21 | **알림 보기** (Show Notification) | `16번 결과의 항목 수`개 일정을 등록했어요 |
 
 > 각 필드에 "반복 항목"을 넣은 뒤 그 변수를 탭해서 **키**를 `title`, `start` 등으로 지정하면 됩니다.
 
@@ -48,6 +51,7 @@
 
 ## 문제 해결
 
-- **"401" / 인증 오류**: 8번 헤더의 API 키를 확인하세요.
+- **"400" + "API key not valid"**: 8번 헤더의 Gemini API 키를 확인하세요.
+- **"429" 오류**: Gemini 무료 사용 한도를 넘었습니다. 잠시 후 다시 실행하세요.
 - **"400" 오류**: 7번 텍스트에서 `{{NOW}}`/`{{TEXT}}`가 변수로 정확히 바뀌었는지, JSON 따옴표가 빠지지 않았는지 확인하세요.
 - **시간이 이상하게 들어감**: 6번 날짜 포맷이 `yyyy-MM-dd`로 시작하는지 확인하세요.

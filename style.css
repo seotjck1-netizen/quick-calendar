@@ -105,9 +105,16 @@ button { font: inherit; cursor: pointer; }
 .result.err { color: var(--err); }
 .result a { color: inherit; }
 
+.result .link { font-size: inherit; margin-left: 4px; }
+
+.actions { display: flex; gap: 8px; margin-top: 12px; }
+.actions .primary { flex: 1; margin-top: 0; }
+.actions .ghost { flex: none; }
+
 .status { text-align: center; color: var(--muted); min-height: 1.5em; margin: 4px 0; }
 .status.err { color: var(--err); }
 .muted { color: var(--muted); }
+.err-text { color: var(--err); }
 .small { font-size: 13px; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 
