@@ -4,6 +4,16 @@
 
 const GEMINI_MODEL = "gemini-3.8-flash";
 
+// Free-tier models are often overloaded (503) or briefly rate-limited (429).
+// Retry after a pause, switching to Flash-Lite, which has its own capacity and quota.
+const ATTEMPTS = [
+  { model: GEMINI_MODEL, delay: 0 },
+  { model: "gemini-3.5-flash-lite", delay: 1000 },
+  { model: GEMINI_MODEL, delay: 3000 },
+];
+const RETRYABLE = new Set([429, 500, 503, 504]);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
 const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
 const WEEK_LABELS = ["이번주", "다음주", "다다음주"];
 
@@ -59,18 +69,30 @@ export async function parseSchedule(text, apiKey, timeZone) {
     .replace("{{NOW}}", () => describeNow(new Date(), timeZone))
     .replace("{{TEXT}}", () => text);
 
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`, {
-    method: "POST",
-    headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
-    body: JSON.stringify(body),
-  });
-  const data = await res.json().catch(() => null);
+  let res, data;
+  for (const { model, delay } of ATTEMPTS) {
+    await sleep(delay);
+    // The thinking level in the template is set for GEMINI_MODEL; let other models use their default.
+    const attemptBody = model === GEMINI_MODEL ? body : { ...body, generationConfig: { ...body.generationConfig, thinkingConfig: undefined } };
+    try {
+      res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-goog-api-key": apiKey },
+        body: JSON.stringify(attemptBody),
+      });
+    } catch {
+      throw new Error("Gemini에 연결하지 못했어요. 인터넷 연결을 확인해 주세요.");
+    }
+    data = await res.json().catch(() => null);
+    if (!RETRYABLE.has(res.status)) break;
+  }
   if (!res.ok) {
     const msg = data?.error?.message ?? res.statusText;
     if (res.status === 401 || res.status === 403 || /API key/i.test(msg)) {
       throw new Error("Gemini API 키가 올바르지 않습니다. 설정에서 확인해 주세요.");
     }
     if (res.status === 429) throw new Error("Gemini 무료 사용 한도를 넘었습니다. 잠시 후 다시 시도해 주세요.");
+    if (res.status >= 500) throw new Error("Gemini 서버가 붐벼요. 잠시 후 다시 시도해 주세요.");
     throw new Error(`Gemini API 오류 (${res.status}): ${msg}`);
   }
   if (data.promptFeedback?.blockReason) throw new Error("이 입력은 해석할 수 없습니다. 문장을 바꿔 다시 시도해 주세요.");
