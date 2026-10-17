@@ -9,6 +9,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="일정등록">
+  <link rel="preconnect" href="https://generativelanguage.googleapis.com" crossorigin>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon-192.png">
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -35,6 +36,7 @@
       <div class="review-head">
         <h2>이렇게 이해했어요</h2>
         <span id="count" class="muted"></span>
+        <button id="reparse" type="button" class="link" hidden>AI로 다시 해석</button>
       </div>
       <ul id="cards" class="cards"></ul>
       <button id="add" class="primary">캘린더에 추가</button>

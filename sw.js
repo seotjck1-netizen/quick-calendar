@@ -1,5 +1,5 @@
 // Caches the app shell so the home-screen app still opens offline. API calls always go to the network.
-const CACHE = "quick-cal-v3";
+const CACHE = "quick-cal-v4";
 const SHELL = [
   "./",
   "index.html",
@@ -7,6 +7,7 @@ const SHELL = [
   "app.js",
   "parse.js",
   "gcal.js",
+  "quick-parse.js",
   "request-template.json",
   "manifest.webmanifest",
   "icons/icon-192.png",

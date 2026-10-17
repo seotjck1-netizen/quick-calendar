@@ -1,4 +1,5 @@
-import { parseSchedule } from "./parse.js";
+import { parseSchedule, warmUp } from "./parse.js";
+import { quickParse } from "./quick-parse.js";
 import { AuthError, deleteEvent, getToken, googleEmail, handleRedirect, insertEvent, logout, redirectUri, startLogin } from "./gcal.js";
 
 const TZ = Intl.DateTimeFormat().resolvedOptions().timeZone || "Asia/Seoul";
@@ -87,6 +88,7 @@ function renderCards() {
     return li;
   }));
 
+  $("#reparse").hidden = !events.some((e) => e.quick && !e.done);
   const pending = events.filter((e) => e.include && !e.done).length;
   $("#count").textContent = `${events.length}개 중 ${pending}개 선택`;
   addBtn.textContent = pending ? `${pending}개 캘린더에 추가` : "모두 등록됨";
@@ -149,21 +151,32 @@ async function undo(ev, button) {
 }
 
 // ---- Parse ----
-async function parse() {
+// Common one-line forms are parsed on the device and shown at once; only the lines
+// quickParse isn't sure about go to Gemini. useAi sends the whole input to Gemini.
+async function parse(useAi = false) {
   const text = input.value.trim();
   if (!text) return setStatus("일정을 입력해 주세요.", true);
+  const quick = useAi ? { events: [], rest: [text] } : quickParse(text);
+  events = quick.events;
+  renderCards();
+  if (!quick.rest.length) {
+    return setStatus("⚡ 바로 해석했어요. 틀린 곳은 고치거나 'AI로 다시 해석'을 눌러 주세요.");
+  }
+
   const apiKey = store.get(KEYS.apiKey);
   if (!apiKey) {
-    setStatus("먼저 Gemini API 키를 설정해 주세요.", true);
-    return openSettings();
+    setStatus(events.length ? `해석하지 못한 줄이 ${quick.rest.length}개 있어요. ⚙︎에서 Gemini API 키를 넣으면 AI가 해석해요.` : "먼저 Gemini API 키를 설정해 주세요.", true);
+    if (!events.length) openSettings();
+    return;
   }
   parseBtn.disabled = true;
-  parseBtn.textContent = "해석 중…";
-  setStatus("");
+  parseBtn.textContent = "AI 해석 중…";
+  setStatus(events.length ? `⚡ ${events.length}개는 바로 해석했어요. 나머지 ${quick.rest.length}줄은 AI가 해석 중…` : "AI가 해석 중이에요…");
   try {
-    events = await parseSchedule(text, apiKey, TZ);
+    const more = await parseSchedule(quick.rest.join("\n"), apiKey, TZ);
+    events.push(...more);
     renderCards();
-    if (!events.length) setStatus("일정을 찾지 못했어요. 날짜나 시간을 넣어 다시 입력해 주세요.", true);
+    setStatus(events.length ? "" : "일정을 찾지 못했어요. 날짜나 시간을 넣어 다시 입력해 주세요.", !events.length);
   } catch (err) {
     setStatus(err.message, true);
   } finally {
@@ -240,7 +253,8 @@ pasteBtn.addEventListener("click", async () => {
   parse();
 });
 
-parseBtn.addEventListener("click", parse);
+parseBtn.addEventListener("click", () => parse());
+$("#reparse").addEventListener("click", () => parse(true));
 addBtn.addEventListener("click", addSelected);
 input.addEventListener("keydown", (e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) parse(); });
 input.addEventListener("input", () => store.set(KEYS.draft, input.value));
@@ -296,6 +310,7 @@ $("#logout").addEventListener("click", () => {
 
 // ---- Startup ----
 input.value = store.get(KEYS.draft) ?? "";
+warmUp();
 
 const auth = handleRedirect();
 if (auth?.error) {
